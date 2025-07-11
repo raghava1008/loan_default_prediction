@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import joblib
 import os
-import requests
 
 st.title("💳 Loan Default Predictor")
 st.markdown("Enter borrower details and predict loan default risk.")
@@ -11,25 +10,15 @@ st.markdown("Enter borrower details and predict loan default risk.")
 @st.cache_resource
 def load_model():
     model_path = "loan_default_model.pkl"
-    model_url = "https://huggingface.co/Raghss/loan-default-model/resolve/main/loan_default_model.pkl"
-
     if not os.path.exists(model_path):
-        try:
-            st.info("📥 Downloading model from Hugging Face...")
-            headers = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}"}
-            response = requests.get(model_url, headers=headers)
-            response.raise_for_status()
-            with open(model_path, "wb") as f:
-                f.write(response.content)
-        except Exception as e:
-            st.error(f"Failed to download model: {e}")
-            return None
+        st.error("❌ Model file not found. Please ensure 'loan_default_model.pkl' is in the repository.")
+        return None
 
     try:
         model = joblib.load(model_path)
         return model
     except Exception as e:
-        st.error(f"Failed to load model: {e}")
+        st.error(f"❌ Failed to load model: {e}")
         return None
 
 model = load_model()
