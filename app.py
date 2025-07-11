@@ -14,29 +14,43 @@ def load_model():
     model_url = "https://huggingface.co/Raghss/loan-default-model/resolve/main/loan_default_model.pkl"
 
     if not os.path.exists(model_path):
-        with st.spinner("Downloading model..."):
-            r = requests.get(model_url, stream=True)
+        try:
+            st.info("📥 Downloading model from Hugging Face...")
+            response = requests.get(model_url)
+            response.raise_for_status()
             with open(model_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-    model = joblib.load(model_path)
-    return model
+                f.write(response.content)
+        except Exception as e:
+            st.error(f"Failed to download model: {e}")
+            return None
+
+    try:
+        model = joblib.load(model_path)
+        return model
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        return None
 
 model = load_model()
+if model is None:
+    st.stop()
 
+# --- Input Form ---
 with st.form("predict_form"):
-    loan_amnt = st.number_input("Loan Amount ($)", 1000, 40000, 10000)
+    st.subheader("📝 Borrower Information")
+    loan_amnt = st.number_input("Loan Amount", min_value=500, max_value=40000, value=10000)
     int_rate = st.slider("Interest Rate (%)", 5.0, 30.0, 13.0)
     emp_length = st.slider("Employment Length (years)", 0, 10, 5)
-    annual_inc = st.number_input("Annual Income ($)", 10000, 1000000, 60000)
+    annual_inc = st.number_input("Annual Income", 10000, 1000000, value=50000)
     dti = st.slider("Debt-to-Income Ratio", 0.0, 40.0, 15.0)
-    fico_low = st.slider("FICO Score (Low)", 600, 850, 690)
-    fico_high = st.slider("FICO Score (High)", 600, 850, 705)
+    fico_low = st.slider("FICO Score (Low Range)", 600, 850, 690)
+    fico_high = st.slider("FICO Score (High Range)", 600, 850, 705)
 
-    submitted = st.form_submit_button("🔍 Predict")
+    submit = st.form_submit_button("🔍 Predict Default Risk")
 
-if submitted:
-    input_dict = {
+# --- Predict and Show ---
+if submit:
+    input_data = {
         'loan_amnt': loan_amnt,
         'int_rate': int_rate,
         'emp_length': emp_length,
@@ -46,21 +60,13 @@ if submitted:
         'fico_range_high': fico_high,
     }
 
-    # Fill remaining required features with 0
-    all_features = list(model.feature_names_in_)
-    for feat in all_features:
-        if feat not in input_dict:
-            input_dict[feat] = 0
-
-    input_df = pd.DataFrame([input_dict])
-    pred = model.predict(input_df)[0]
-    prob = model.predict_proba(input_df)[0][1]
+    df = pd.DataFrame([input_data])
+    pred = model.predict(df)[0]
+    prob = model.predict_proba(df)[0][1]
 
     if pred == 1:
-        st.markdown("### ❌ High Risk of Default")
-        st.markdown(f"🔴 **Probability: `{prob:.2%}`**")
-        st.markdown('<h1 style="font-size:80px; color:red;">●</h1>', unsafe_allow_html=True)
+        st.error(f"❌ High Risk of Default\n\n**Probability: {prob:.2%}**")
+        st.markdown('<h1 style="color:red; font-size:60px;">🔴</h1>', unsafe_allow_html=True)
     else:
-        st.markdown("### ✅ Likely to Repay")
-        st.markdown(f"🟢 **Probability of Default: `{prob:.2%}`**")
-        st.markdown('<h1 style="font-size:80px; color:green;">●</h1>', unsafe_allow_html=True)
+        st.success(f"✅ Likely to Repay\n\n**Probability of Default: {prob:.2%}**")
+        st.markdown('<h1 style="color:green; font-size:60px;">🟢</h1>', unsafe_allow_html=True)
