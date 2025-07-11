@@ -16,7 +16,8 @@ def load_model():
     if not os.path.exists(model_path):
         try:
             st.info("📥 Downloading model from Hugging Face...")
-            response = requests.get(model_url)
+            headers = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}"}
+            response = requests.get(model_url, headers=headers)
             response.raise_for_status()
             with open(model_path, "wb") as f:
                 f.write(response.content)
