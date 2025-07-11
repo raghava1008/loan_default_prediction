@@ -2,4 +2,4 @@
 *.csv
 /data/
 *.zip
-#*.pkl
+*.pkl
