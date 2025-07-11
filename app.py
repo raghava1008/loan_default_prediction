@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import pickle
+import joblib
 import matplotlib.pyplot as plt
 import base64
 import os
@@ -9,50 +9,20 @@ import requests
 
 st.markdown("✅ App loaded successfully - top of file")
 
-
 # Custom CSS styling
 st.markdown("""
 <style>
-    /* Page background */
-    .main {
-        background-color: #f5f7fa;
-        padding: 2rem;
-    }
-
-    /* App title */
-    h1 {
-        color: #003366;
-        font-size: 3em;
-        font-weight: bold;
-    }
-
-    /* Subheader styling */
-    h3, h4 {
-        color: #1a237e;
-    }
-
-    /* Red and green circle styles */
-    .circle {
-        font-size: 60px;
-        line-height: 0.5;
-    }
-
-    .circle.red {
-        color: #ff1744;
-    }
-
-    .circle.green {
-        color: #00c853;
-    }
-
-    /* DataFrame background */
+    .main { background-color: #f5f7fa; padding: 2rem; }
+    h1 { color: #003366; font-size: 3em; font-weight: bold; }
+    h3, h4 { color: #1a237e; }
+    .circle { font-size: 60px; line-height: 0.5; }
+    .circle.red { color: #ff1744; }
+    .circle.green { color: #00c853; }
     .stDataFrame {
         background-color: white;
         border-radius: 8px;
         box-shadow: 0px 1px 3px rgba(0,0,0,0.2);
     }
-
-    /* Button customization */
     .stButton>button {
         background-color: #1a73e8;
         color: white;
@@ -61,7 +31,6 @@ st.markdown("""
         padding: 10px 20px;
         transition: 0.3s;
     }
-
     .stButton>button:hover {
         background-color: #0d47a1;
         color: #fff;
@@ -69,41 +38,49 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+# Load model from Hugging Face
 @st.cache_resource
 def load_model():
     model_path = "loan_default_model.pkl"
     model_url = "https://huggingface.co/Raghss/loan-default-model/resolve/main/loan_default_model.pkl"
 
     if not os.path.exists(model_path):
-        with st.spinner("Downloading model from Hugging Face..."):
-            r = requests.get(model_url, stream=True)
-            with open(model_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+        with st.spinner("🌐 Downloading model from Hugging Face..."):
+            try:
+                r = requests.get(model_url, stream=True)
+                r.raise_for_status()
+                with open(model_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                st.success("📥 Model downloaded successfully.")
+            except Exception as e:
+                st.error(f"❌ Failed to download model: {e}")
+                return None
 
-    with open(model_path, 'rb') as file:
-        model = pickle.load(file)
-
-    return model
+    try:
+        model = joblib.load(model_path)
+        st.success("✅ Model loaded successfully.")
+        return model
+    except Exception as e:
+        st.error(f"❌ Error loading model: {e}")
+        return None
 
 
 st.markdown("🧠 Starting model download from Hugging Face...")
 model = load_model()
-st.markdown("✅ Model loaded")
+if model is None:
+    st.stop()
 
-# --- Custom Logo / Header ---
-st.image("logo.png", width=120)  # place a logo file in your working dir
+st.image("logo.png", width=120)
 st.title("💳 Loan Default Prediction App")
 st.markdown("### Predict borrower risk & explore model insights")
 st.markdown("---")
 
-# --- File Upload for Batch Processing ---
 st.sidebar.markdown("📂 **Upload CSV for batch predictions**")
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
 
-# === Define input UI or use batch ===
 if uploaded_file is None:
-    # --- Single Prediction Mode ---
     st.subheader("📝 Enter Borrower Info")
     with st.form("loan_form"):
         loan_amnt = st.number_input("Loan Amount ($)", min_value=500, max_value=40000, value=10000)
@@ -166,7 +143,6 @@ if uploaded_file is None:
             st.markdown(f"**🟢 Probability of Default: `{prob:.2%}`**")
             st.markdown('<div class="circle green">●</div>', unsafe_allow_html=True)
 
-        # Top Feature Importances
         st.markdown("---")
         st.subheader("📊 Top 5 Important Features")
         importances = model.feature_importances_
@@ -175,11 +151,9 @@ if uploaded_file is None:
         st.bar_chart(fi_df.set_index('feature'))
 
 else:
-    # --- Batch Prediction Mode ---
     df_batch = pd.read_csv(uploaded_file)
     df_batch.fillna(0, inplace=True)
 
-    # Validate column match with model
     required_cols = model.feature_names_in_
     if not all(col in df_batch.columns for col in required_cols):
         st.error("🚫 Uploaded CSV is missing required columns. Please check the input format.")
@@ -191,16 +165,3 @@ else:
         df_batch['default_probability'] = probs
 
         st.subheader("📋 Prediction Results")
-        st.dataframe(df_batch.head())
-
-        # Download link
-        csv = df_batch.to_csv(index=False)
-        b64 = base64.b64encode(csv.encode()).decode()
-        href = f'<a href="data:file/csv;base64,{b64}" download="loan_predictions.csv">📥 Download Predictions CSV</a>'
-        st.markdown(href, unsafe_allow_html=True)
-
-        # Actual vs Predicted chart
-        if 'defaulted' in df_batch.columns:
-            st.subheader("📈 Actual vs Predicted")
-            chart_data = df_batch[['defaulted', 'prediction']].value_counts().unstack().fillna(0)
-            st.bar_chart(chart_data)
