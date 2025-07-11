@@ -64,13 +64,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# --- Load model ---
 @st.cache_resource
 def load_model():
-    with open('loan_default_model.pkl', 'rb') as file:
+    model_path = "loan_default_model.pkl"
+    model_url = "https://huggingface.co/Raghss/loan-default-model/resolve/main/loan_default_model.pkl"
+
+    if not os.path.exists(model_path):
+        with st.spinner("Downloading model from Hugging Face..."):
+            r = requests.get(model_url, stream=True)
+            with open(model_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+    with open(model_path, 'rb') as file:
         model = pickle.load(file)
+
     return model
+
 
 model = load_model()
 
