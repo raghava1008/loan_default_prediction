@@ -1,28 +1,25 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 import joblib
-import os
+import io
 
 st.title("💳 Loan Default Predictor")
-st.markdown("Enter borrower details and predict loan default risk.")
+st.markdown("Upload your trained `.pkl` model and enter borrower details to predict default risk.")
 
-@st.cache_resource
-def load_model():
-    model_path = "loan_default_model.pkl"
-    if not os.path.exists(model_path):
-        st.error("❌ Model file not found. Please ensure 'loan_default_model.pkl' is in the repository.")
-        return None
+# --- Upload model ---
+st.sidebar.header("📤 Upload Model")
+uploaded_model = st.sidebar.file_uploader("Upload a .pkl model file", type=["pkl"])
 
+if uploaded_model is not None:
     try:
-        model = joblib.load(model_path)
-        return model
+        model = joblib.load(uploaded_model)
+        st.success("✅ Model loaded successfully!")
     except Exception as e:
         st.error(f"❌ Failed to load model: {e}")
-        return None
-
-model = load_model()
-if model is None:
+        st.stop()
+else:
+    st.warning("⚠️ Please upload a trained model to continue.")
     st.stop()
 
 # --- Input Form ---
@@ -38,7 +35,7 @@ with st.form("predict_form"):
 
     submit = st.form_submit_button("🔍 Predict Default Risk")
 
-# --- Predict and Show ---
+# --- Prediction ---
 if submit:
     input_data = {
         'loan_amnt': loan_amnt,
@@ -51,12 +48,15 @@ if submit:
     }
 
     df = pd.DataFrame([input_data])
-    pred = model.predict(df)[0]
-    prob = model.predict_proba(df)[0][1]
+    try:
+        pred = model.predict(df)[0]
+        prob = model.predict_proba(df)[0][1]
 
-    if pred == 1:
-        st.error(f"❌ High Risk of Default\n\n**Probability: {prob:.2%}**")
-        st.markdown('<h1 style="color:red; font-size:60px;">🔴</h1>', unsafe_allow_html=True)
-    else:
-        st.success(f"✅ Likely to Repay\n\n**Probability of Default: {prob:.2%}**")
-        st.markdown('<h1 style="color:green; font-size:60px;">🟢</h1>', unsafe_allow_html=True)
+        if pred == 1:
+            st.error(f"❌ High Risk of Default\n\n**Probability: {prob:.2%}**")
+            st.markdown('<h1 style="color:red; font-size:60px;">🔴</h1>', unsafe_allow_html=True)
+        else:
+            st.success(f"✅ Likely to Repay\n\n**Probability of Default: {prob:.2%}**")
+            st.markdown('<h1 style="color:green; font-size:60px;">🟢</h1>', unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
