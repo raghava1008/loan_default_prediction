@@ -7,6 +7,7 @@ import base64
 import os
 import requests
 
+st.markdown("✅ App loaded successfully - top of file")
 
 
 # Custom CSS styling
@@ -86,7 +87,9 @@ def load_model():
     return model
 
 
+st.markdown("🧠 Starting model download from Hugging Face...")
 model = load_model()
+st.markdown("✅ Model loaded")
 
 # --- Custom Logo / Header ---
 st.image("logo.png", width=120)  # place a logo file in your working dir
